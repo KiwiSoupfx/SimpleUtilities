@@ -13,6 +13,9 @@ using LabApi.Events.Arguments.ServerEvents;
 using LabApi.Features.Wrappers;
 using LabApi.Features.Extensions;
 using LabApi.Events.Arguments.Scp096Events;
+using Logger = LabApi.Features.Console.Logger;
+using CommandSystem.Commands.RemoteAdmin.Doors;
+using LabApi.Features.Enums;
 
 namespace SimpleUtilities
 {
@@ -25,7 +28,7 @@ namespace SimpleUtilities
         //Welcome message.
         public override void OnPlayerJoined(PlayerJoinedEventArgs args)
         {
-            LabApi.Features.Console.Logger.Debug("[DEBUG]Player Joined");
+            Logger.Debug("Player Joined");
             Config config = SimpleUtilities.Singleton.Config;
 
             if (config is null)
@@ -56,7 +59,7 @@ namespace SimpleUtilities
             }
             catch (Exception e)
             {
-                LabApi.Features.Console.Logger.Error("[Event: OnServerWaitingForPlayers] " + e.ToString());
+                Logger.Error("[Event: OnServerWaitingForPlayers] " + e.ToString());
             }
         }
 
@@ -95,7 +98,7 @@ namespace SimpleUtilities
             if (!SimpleUtilities.Singleton.Config.CuffedChangeTeams)
                 return;
 
-            Player player = args.Player;
+            //  Player player = args.Player;
             Player target = args.Target;
 
             Timing.RunCoroutine(CuffedChangeTeams());
@@ -217,6 +220,47 @@ namespace SimpleUtilities
                 .Replace("%max%", ((int)Math.Ceiling(target.MaxHealth)).ToString());
                 target.CustomInfo = customInfo;
             });
+        }
+
+        //Change facility guard to NTF role
+        public override void OnPlayerInteractingDoor(PlayerInteractingDoorEventArgs args)
+        {
+            Logger.Debug(args.Door.DoorName.ToString() +" "+ SimpleUtilities.Singleton.Config.GuardsCanEscape.ToString() +" "+ args.Player.RoleBase.RoleTypeId.ToString() +" "+ args.Player.IsDisarmed.ToString());
+            if (args.Door.DoorName !=  DoorName.SurfaceEscapeFinal || !SimpleUtilities.Singleton.Config.GuardsCanEscape || args.Player.RoleBase.RoleTypeId != RoleTypeId.FacilityGuard || args.Player.IsDisarmed)
+                return;
+
+            string roleToBe = SimpleUtilities.Singleton.Config.EscapedGuardRole;
+            List<string> randomRoles = SimpleUtilities.Singleton.Config.RandomGuardRoles;
+            RoleTypeId roleToBeId;
+
+            if (roleToBe.ToLower() == "random")
+            {
+                //int randomRoles.Count;
+                int myRandom = Random.Range(0, randomRoles.Count);
+                roleToBe = randomRoles[myRandom];
+            }
+
+            switch (roleToBe.ToLower())
+            {
+                case "ntfsergeant":
+                    roleToBeId = RoleTypeId.NtfSergeant;
+                    break;
+                case "ntfcaptain":
+                    roleToBeId = RoleTypeId.NtfCaptain;
+                    break;
+                case "ntfprivate":
+                    roleToBeId = RoleTypeId.NtfPrivate;
+                    break;
+                case "ntfspecialist":
+                    roleToBeId = RoleTypeId.NtfSpecialist;
+                    break;
+                default:
+                    roleToBeId = RoleTypeId.FacilityGuard;
+                    Logger.Warn("EscapedGuardRole is improperly set. Change ASAP!");
+                    break;
+            }
+
+            args.Player.SetRole(roleToBeId, RoleChangeReason.Escaped);
         }
 
         //There is no event when the player is healed.

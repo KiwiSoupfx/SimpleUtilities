@@ -1,4 +1,6 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace SimpleUtilities
 {
@@ -48,5 +50,19 @@ namespace SimpleUtilities
 
         [Description("Format of displayed HP. Keep everything between ' '.")]
         public string HpDisplayFormat { get; set; } = "HP: %current%/%max%";
+
+        [Description("Grant facility guards honorary promotion into NTF on leaving the facility (Until order is restored)")]
+        public bool GuardsCanEscape { get; set; } = false;
+
+        [Description("Role to be granted to escaping guards (NtfSergeant, NtfCaptain, NtfPrivate, NtfSpecialist, random)")]
+        public string EscapedGuardRole { get; set; } = "";
+
+        [Description("Escaped guard random roles")]
+        public List<String> RandomGuardRoles { get; set; } = new List<String>()
+        {
+            "NtfSergeant",
+            "NtfSpecialist",
+            "NtfPrivate"
+        };
     }
 }

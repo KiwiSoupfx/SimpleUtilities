@@ -10,20 +10,25 @@
 - Hint displayed after looking at / shooting SCP-096.
 - Hint displayed when flipping a coin.
 - Displays HP of the player you are looking at.
+- Allows guards to be promoted as an honorary NTF Operative
+- Selectable guard promotion role
 
 More to come!
 
 ## Install
 ### LocalAdmin Install:
-To install the plugin via LocalAdmin, boot up your server and type ```p install omgiamhungarian/SimpleUtilities```. (Make sure 0Harmony.dll is in PluginAPI/plugins/(server_port)/dependencies after installing.)
+### Outdated - Currently uses the old API and lacks 0harmony
+### Make sure you are using the correct version
+To install the plugin via LocalAdmin, boot up your server and type ```p install kiwisoupfx/SimpleUtilities```. (Make sure 0Harmony.dll is in LabAPI/dependencies/(server_port)/ after installing.)
 
 ### Manual Install:
-1. Download the latest released SimpleUtilities.dll and dependencies.zip from [releases](https://github.com/omgiamhungarian/SimpleUtilities/releases/).
-2. Move the SimpleUtilities.dll to ```PluginAPI/plugins/(server_port)```.
-3. Move the 0Harmony.dll from dependencies.zip to PluginAPI/plugins/(server_port)/dependencies.
+1. Download the latest released SimpleUtilities.dll and dependencies.zip from [releases](https://https://github.com/KiwiSoupfx/SimpleUtilities/releases/).
+2. Move the SimpleUtilities.dll to ```LabAPI/plugins/(server_port)```.
+3. Download [0Harmony.dll](https://github.com/pardeike/Harmony/releases/tag/v2.3.3.0) and to LabAPI/dependencies/(server_port)/.
 4. You are done. Restart your server.
 
 ## Default Configuration file
+### Outdated - server will generate one for you.
 
 ```yml
 # Whether or not the plugin is enabled.
@@ -56,4 +61,13 @@ coin_heads: the coin landed on heads!
 show_hp: true
 # Format of displayed HP. Keep everything between ' '.
 hp_display_format: 'HP: %current%/%max%'
+# Grant facility guards honorary promotion into NTF on leaving the facility (Until order is restored)
+guards_can_escape: false
+# Role to be granted to escaping guards (NtfSergeant, NtfCaptain, NtfPrivate, NtfSpecialist, random)
+escaped_guard_role: random
+# Escaped guard random roles
+random_guard_roles:
+- NtfSergeant
+- NtfSpecialist
+- NtfPrivate
 ```
