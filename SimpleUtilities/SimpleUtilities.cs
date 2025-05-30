@@ -24,10 +24,8 @@ namespace SimpleUtilities
 
         public override void Enable()
         {
-            //Logger.Debug("[DEBUG] SimpleUtilities Loading");
-
-            //if (!Config.IsEnabled)
-            //    return;
+            if (!Config.IsEnabled)
+                return;
 
             Singleton = this;
             //EventManager.RegisterEvents(this);
@@ -40,8 +38,7 @@ namespace SimpleUtilities
         {
             Singleton = null!;
             CustomHandlersManager.UnregisterEventsHandler(Events);
-            Harmony = null;      
-            Logger.Debug("[DEBUG] SimpleUtilities Disabled");    
+            Harmony = null;       
         }
     }
 }

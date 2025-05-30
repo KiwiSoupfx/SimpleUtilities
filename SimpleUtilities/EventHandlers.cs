@@ -14,21 +14,18 @@ using LabApi.Features.Wrappers;
 using LabApi.Features.Extensions;
 using LabApi.Events.Arguments.Scp096Events;
 using Logger = LabApi.Features.Console.Logger;
-using CommandSystem.Commands.RemoteAdmin.Doors;
 using LabApi.Features.Enums;
 
 namespace SimpleUtilities
 {
     public class EventHandlers : CustomEventsHandler
     {
-        
         int randomNumber;
         string hpFormat;
         
         //Welcome message.
         public override void OnPlayerJoined(PlayerJoinedEventArgs args)
         {
-            Logger.Debug("Player Joined");
             Config config = SimpleUtilities.Singleton.Config;
 
             if (config is null)
@@ -50,7 +47,16 @@ namespace SimpleUtilities
         //Chaos Insurgency spawn on round start.
         public override void OnServerWaitingForPlayers()
         {
+            SimpleUtilities.Singleton.LoadConfigs(); //Load at every roundPrep so no restart to reload config
             randomNumber = Random.Range(1, 100);
+
+            if (!SimpleUtilities.Singleton.Config.IsEnabled)
+            {
+                SimpleUtilities.Singleton.Disable();
+                return;
+            }
+
+
 
             try
             {
@@ -225,13 +231,13 @@ namespace SimpleUtilities
         //Change facility guard to NTF role
         public override void OnPlayerInteractingDoor(PlayerInteractingDoorEventArgs args)
         {
-            Logger.Debug(args.Door.DoorName.ToString() +" "+ SimpleUtilities.Singleton.Config.GuardsCanEscape.ToString() +" "+ args.Player.RoleBase.RoleTypeId.ToString() +" "+ args.Player.IsDisarmed.ToString());
+            //DebugLog(args.Door.DoorName.ToString() +" "+ SimpleUtilities.Singleton.Config.GuardsCanEscape.ToString() +" "+ args.Player.RoleBase.RoleTypeId.ToString() +" "+ args.Player.IsDisarmed.ToString());
             if (args.Door.DoorName !=  DoorName.SurfaceEscapeFinal || !SimpleUtilities.Singleton.Config.GuardsCanEscape || args.Player.RoleBase.RoleTypeId != RoleTypeId.FacilityGuard || args.Player.IsDisarmed)
                 return;
 
             string roleToBe = SimpleUtilities.Singleton.Config.EscapedGuardRole;
             List<string> randomRoles = SimpleUtilities.Singleton.Config.RandomGuardRoles;
-            RoleTypeId roleToBeId;
+            RoleTypeId roleToBeId = args.Player.Role.GetRoleBase().RoleTypeId; //Set to player's current role to prevent issues later
 
             if (roleToBe.ToLower() == "random")
             {
@@ -240,27 +246,55 @@ namespace SimpleUtilities
                 roleToBe = randomRoles[myRandom];
             }
 
-            switch (roleToBe.ToLower())
+            //The idea of doing this was revealed to me in a dream
+            Array rolesList = typeof(RoleTypeId).GetEnumValues();
+            bool matchFound = false;
+            foreach (RoleTypeId roleId in rolesList)
             {
-                case "ntfsergeant":
-                    roleToBeId = RoleTypeId.NtfSergeant;
-                    break;
-                case "ntfcaptain":
-                    roleToBeId = RoleTypeId.NtfCaptain;
-                    break;
-                case "ntfprivate":
-                    roleToBeId = RoleTypeId.NtfPrivate;
-                    break;
-                case "ntfspecialist":
-                    roleToBeId = RoleTypeId.NtfSpecialist;
-                    break;
-                default:
-                    roleToBeId = RoleTypeId.FacilityGuard;
-                    Logger.Warn("EscapedGuardRole is improperly set. Change ASAP!");
-                    break;
+                DebugLog(nameof(roleId).ToLower());
+                if (roleId.ToString().ToLower() == roleToBe.ToLower())
+                {
+                    roleToBeId = roleId;
+                    matchFound = true;
+                    DebugLog(roleToBeId.ToString());
+                }
             }
 
+            if (!matchFound)
+            {
+                Logger.Error("Could not find role " + roleToBe + ". Please consult RoleTypeId.cs");
+            }
+            /*
+                switch (roleToBe.ToLower())
+                {
+                    case "ntfsergeant":
+                        roleToBeId = RoleTypeId.NtfSergeant;
+                        break;
+                    case "ntfcaptain":
+                        roleToBeId = RoleTypeId.NtfCaptain;
+                        break;
+                    case "ntfprivate":
+                        roleToBeId = RoleTypeId.NtfPrivate;
+                        break;
+                    case "ntfspecialist":
+                        roleToBeId = RoleTypeId.NtfSpecialist;
+                        break;
+                    default:
+                        roleToBeId = RoleTypeId.FacilityGuard;
+                        Logger.Warn("EscapedGuardRole is improperly set. Change ASAP!");
+                        break;
+                }
+                */
+
             args.Player.SetRole(roleToBeId, RoleChangeReason.Escaped);
+        }
+
+        public void DebugLog(object obj)
+        {
+            if (!SimpleUtilities.Singleton.Config.Debug)
+                return;
+
+            Logger.Debug(obj);
         }
 
         //There is no event when the player is healed.
