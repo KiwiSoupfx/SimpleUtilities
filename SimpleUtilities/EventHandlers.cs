@@ -291,18 +291,18 @@ namespace SimpleUtilities
 
         public override void OnPlayerPickedUpItem(PlayerPickedUpItemEventArgs args)
         {
-            if (SimpleUtilities.Singleton.Config.ShouldBlacklist3114 && SimpleUtilities.Singleton.Config.Blacklist3114.Count > 0)
-                DebugLog(SimpleUtilities.Singleton.Config.ShouldBlacklist3114.ToString() + ", " + SimpleUtilities.Singleton.Config.Blacklist3114.Count.ToString());
-            if (args.Player.Role == RoleTypeId.Scp3114)
+            if (!SimpleUtilities.Singleton.Config.ShouldBlacklist3114 || SimpleUtilities.Singleton.Config.Blacklist3114.Count == 0 || args.Player.Role != RoleTypeId.Scp3114)
+                return;
+
+            DebugLog(SimpleUtilities.Singleton.Config.ShouldBlacklist3114.ToString() + ", " + SimpleUtilities.Singleton.Config.Blacklist3114.Count.ToString());
+
+            foreach (string blockedItem in SimpleUtilities.Singleton.Config.Blacklist3114)
             {
-                foreach (string blockedItem in SimpleUtilities.Singleton.Config.Blacklist3114)
+                if (blockedItem.ToLower() == args.Item.Type.ToString().ToLower())
                 {
-                    if (blockedItem.ToLower() == args.Item.Type.ToString().ToLower())
-                    {
-                        args.Player.DropItem(args.Item);
-                        args.Player.SendHint("SCP-3114 cannot pick up this item.", 2f);
-                        break;
-                    }
+                    args.Item.DropItem();
+                    args.Player.SendHint("SCP-3114 cannot pick up this item.", 2f);
+                    break;
                 }
             }
         }
