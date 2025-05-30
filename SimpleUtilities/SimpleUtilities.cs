@@ -4,7 +4,7 @@ using System;
 using LabApi.Features;
 using LabApi.Loader.Features.Plugins.Enums;
 using LabApi.Events.CustomHandlers;
-using LabApi.Features.Console;
+
 
 namespace SimpleUtilities
 {
@@ -13,7 +13,7 @@ namespace SimpleUtilities
         public override string Name { get; } = "SimpleUtilities";
         public override string Author { get; } = "omgiamhungarian, KiwiSoupfx";
         public override string Description { get; } = "Provides simple features for your server.";
-        public override Version Version { get; } = new Version(1, 2, 2);
+        public override Version Version { get; } = new Version(1, 3, 0);
         public override Version RequiredApiVersion { get; } = new Version(LabApiProperties.CompiledVersion);
         public EventHandlers Events { get; private set; } = new EventHandlers();
         public static SimpleUtilities Singleton { get; set; } = null!;
@@ -24,15 +24,9 @@ namespace SimpleUtilities
 
         public override void Enable()
         {
-            if (!Config.IsEnabled)
-                return;
-
             Singleton = this;
-            //EventManager.RegisterEvents(this);
-            //EventManager.RegisterEvents<EventHandlers>(this);
             CustomHandlersManager.RegisterEventsHandler(Events);
             Harmony = new Harmony("com.kiwisoupfx.simpleutilities"); //Changing it for futureproofing
-            //Harmony.PatchAll();
         }
         public override void Disable()
         {

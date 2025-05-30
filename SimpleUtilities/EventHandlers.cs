@@ -47,8 +47,7 @@ namespace SimpleUtilities
         //Chaos Insurgency spawn on round start.
         public override void OnServerWaitingForPlayers()
         {
-            SimpleUtilities.Singleton.LoadConfigs(); //Load at every roundPrep so no restart to reload config
-            randomNumber = Random.Range(1, 100);
+            SimpleUtilities.Singleton.LoadConfigs(); //Load at every roundPrep so no restart to reload config/enable plugin
 
             if (!SimpleUtilities.Singleton.Config.IsEnabled)
             {
@@ -56,6 +55,7 @@ namespace SimpleUtilities
                 return;
             }
 
+            randomNumber = Random.Range(1, 100);
 
 
             try
@@ -287,6 +287,25 @@ namespace SimpleUtilities
                 */
 
             args.Player.SetRole(roleToBeId, RoleChangeReason.Escaped);
+        }
+
+        public override void OnPlayerPickingUpItem(PlayerPickingUpItemEventArgs args)
+        {
+            DebugLog(args.Pickup.Type.ToString().ToLower());
+            if (SimpleUtilities.Singleton.Config.ShouldBlacklist3114 && SimpleUtilities.Singleton.Config.Blacklist3114.Count > 0)
+                DebugLog(SimpleUtilities.Singleton.Config.ShouldBlacklist3114.ToString() + ", " + SimpleUtilities.Singleton.Config.Blacklist3114.Count.ToString());
+                if (args.Player.Role == RoleTypeId.Scp3114)
+                {
+                    foreach (string blockedItem in SimpleUtilities.Singleton.Config.Blacklist3114)
+                    {
+                        if (blockedItem.ToLower() == args.Pickup.Type.ToString().ToLower())
+                        {
+                            args.IsAllowed = false;
+                            args.Player.SendHint("SCP-3114 cannot pick up this item.", 2f);
+                            return;
+                        }
+                    }
+                }
         }
 
         public void DebugLog(object obj)

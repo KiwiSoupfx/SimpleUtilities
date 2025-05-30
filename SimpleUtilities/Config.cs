@@ -58,11 +58,34 @@ namespace SimpleUtilities
         public string EscapedGuardRole { get; set; } = "";
 
         [Description("Escaped guard random roles")]
-        public List<String> RandomGuardRoles { get; set; } = new List<String>()
+        public List<String> RandomGuardRoles { get; set; } = new()
         {
             "NtfSergeant",
             "NtfSpecialist",
             "NtfPrivate"
+        };
+
+        [Description("Prevent Scp3114 from picking up blacklisted items.")]
+        public bool ShouldBlacklist3114 { get; set; } = false;
+
+        [Description("Blacklisted Scp3114 items")]
+        public List<String> Blacklist3114 { get; set; } = new()
+        {
+            "SCP1507Tape",
+            "GunSCP127",
+            "AntiSCP207",
+            "SCP1576",
+            "SCP1853",
+            "SCP244b",
+            "SCP244a",
+            "SCP2176",
+            "SCP330",
+            "SCP268",
+            "SCP018",
+            "SCP207",
+            "SCP500",
+            "MicroHID",
+            "ParticleDisruptor"
         };
     }
 }
