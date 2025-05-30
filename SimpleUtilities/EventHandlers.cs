@@ -289,23 +289,22 @@ namespace SimpleUtilities
             args.Player.SetRole(roleToBeId, RoleChangeReason.Escaped);
         }
 
-        public override void OnPlayerPickingUpItem(PlayerPickingUpItemEventArgs args)
+        public override void OnPlayerPickedUpItem(PlayerPickedUpItemEventArgs args)
         {
-            DebugLog(args.Pickup.Type.ToString().ToLower());
             if (SimpleUtilities.Singleton.Config.ShouldBlacklist3114 && SimpleUtilities.Singleton.Config.Blacklist3114.Count > 0)
                 DebugLog(SimpleUtilities.Singleton.Config.ShouldBlacklist3114.ToString() + ", " + SimpleUtilities.Singleton.Config.Blacklist3114.Count.ToString());
-                if (args.Player.Role == RoleTypeId.Scp3114)
+            if (args.Player.Role == RoleTypeId.Scp3114)
+            {
+                foreach (string blockedItem in SimpleUtilities.Singleton.Config.Blacklist3114)
                 {
-                    foreach (string blockedItem in SimpleUtilities.Singleton.Config.Blacklist3114)
+                    if (blockedItem.ToLower() == args.Item.Type.ToString().ToLower())
                     {
-                        if (blockedItem.ToLower() == args.Pickup.Type.ToString().ToLower())
-                        {
-                            args.IsAllowed = false;
-                            args.Player.SendHint("SCP-3114 cannot pick up this item.", 2f);
-                            return;
-                        }
+                        args.Player.DropItem(args.Item);
+                        args.Player.SendHint("SCP-3114 cannot pick up this item.", 2f);
+                        break;
                     }
                 }
+            }
         }
 
         public void DebugLog(object obj)
