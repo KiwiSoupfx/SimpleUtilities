@@ -1,30 +1,47 @@
-﻿using PluginAPI.Enums;
-using PluginAPI.Events;
-using PluginAPI.Core.Attributes;
+﻿using LabApi.Loader.Features.Plugins;
 using HarmonyLib;
+using System;
+using LabApi.Features;
+using LabApi.Loader.Features.Plugins.Enums;
+using LabApi.Events.CustomHandlers;
+using LabApi.Features.Console;
 
 namespace SimpleUtilities
 {
-    public class SimpleUtilities
+    public class SimpleUtilities : Plugin<Config>
     {
-        public static SimpleUtilities Singleton;
+        public override string Name { get; } = "SimpleUtilities";
+        public override string Author { get; } = "omgiamhungarian, KiwiSoupfx";
+        public override string Description { get; } = "Provides simple features for your server.";
+        public override Version Version { get; } = new Version(1, 2, 0);
+        public override Version RequiredApiVersion { get; } = new Version(LabApiProperties.CompiledVersion);
+        public EventHandlers Events { get; private set; } = new EventHandlers();
+        public static SimpleUtilities Singleton { get; set; } = null!;
 
-        [PluginConfig]
-        public Config Config;
+        public Harmony Harmony { get; private set; }
 
-        [PluginPriority(LoadPriority.Highest)]
-        [PluginEntryPoint("SimpleUtilities", "1.1.3", "Provides simple features for your server.", "omgiamhungarian")]
+        public override LoadPriority Priority { get; } = LoadPriority.Highest; 
 
-        public void LoadPlugin()
+        public override void Enable()
         {
-            if (!Config.IsEnabled)
-                return;
+            //Logger.Debug("[DEBUG] SimpleUtilities Loading");
+
+            //if (!Config.IsEnabled)
+            //    return;
 
             Singleton = this;
-            EventManager.RegisterEvents(this);
-            EventManager.RegisterEvents<EventHandlers>(this);
-            Harmony harmony = new Harmony("com.omgiamhungarian.simpleutilities");
-            harmony.PatchAll();
+            //EventManager.RegisterEvents(this);
+            //EventManager.RegisterEvents<EventHandlers>(this);
+            CustomHandlersManager.RegisterEventsHandler(Events);
+            Harmony = new Harmony("com.kiwisoupfx.simpleutilities"); //Changing it for futureproofing
+            //Harmony.PatchAll();
+        }
+        public override void Disable()
+        {
+            Singleton = null!;
+            CustomHandlersManager.UnregisterEventsHandler(Events);
+            Harmony = null;      
+            Logger.Debug("[DEBUG] SimpleUtilities Disabled");    
         }
     }
 }

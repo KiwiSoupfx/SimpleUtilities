@@ -1,8 +1,4 @@
 ﻿using System.Collections.Generic;
-using PluginAPI.Core;
-using PluginAPI.Enums;
-using PluginAPI.Core.Attributes;
-using Respawning;
 using PlayerRoles;
 using MEC;
 using GameCore;
@@ -11,65 +7,73 @@ using PlayerStatsSystem;
 using System;
 using HarmonyLib;
 using Random = UnityEngine.Random;
+using LabApi.Events.CustomHandlers;
+using LabApi.Events.Arguments.PlayerEvents;
+using LabApi.Events.Arguments.ServerEvents;
+using LabApi.Features.Wrappers;
+using LabApi.Features.Extensions;
+using LabApi.Events.Arguments.Scp096Events;
 
 namespace SimpleUtilities
 {
-    public class EventHandlers
+    public class EventHandlers : CustomEventsHandler
     {
+        
         int randomNumber;
-        string hpFormat = SimpleUtilities.Singleton.Config.HpDisplayFormat;
-
+        string hpFormat;
+        
         //Welcome message.
-        [PluginEvent(ServerEventType.PlayerJoined)]
-        public void OnPlayerJoin(Player player)
+        public override void OnPlayerJoined(PlayerJoinedEventArgs args)
         {
+            LabApi.Features.Console.Logger.Debug("[DEBUG]Player Joined");
             Config config = SimpleUtilities.Singleton.Config;
-            Broadcast.Singleton.TargetAddElement(player.ReferenceHub.characterClassManager.connectionToClient, config.WelcomeMessage, config.WelcomeMessageTime, Broadcast.BroadcastFlags.Normal);
+
+            if (config is null)
+                return;
+
+            args.Player.SendBroadcast(config.WelcomeMessage, config.WelcomeMessageTime, Broadcast.BroadcastFlags.Normal, false);
         }
-
         //Cassie announcement on Chaos Insurgency Spawn.
-        [PluginEvent(ServerEventType.TeamRespawn)]
-        public void OnRespawn(SpawnableTeamType team, List<Player> players, int time)
+        public override void OnServerWaveRespawned(WaveRespawnedEventArgs args)
         {
             Config config = SimpleUtilities.Singleton.Config;
 
-            if (team == SpawnableTeamType.ChaosInsurgency)
+            if (args.Wave.Faction == Faction.FoundationEnemy)
             {
                 Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
             }
         }
 
         //Chaos Insurgency spawn on round start.
-
-        [PluginEvent(ServerEventType.WaitingForPlayers)]
-        void WaitingForPlayers()
+        public override void OnServerWaitingForPlayers()
         {
             randomNumber = Random.Range(1, 100);
+
+            try
+            {
+                hpFormat = SimpleUtilities.Singleton.Config.HpDisplayFormat;
+                SimpleUtilities.Singleton.Harmony.PatchAll();
+            }
+            catch (Exception e)
+            {
+                LabApi.Features.Console.Logger.Error("[Event: OnServerWaitingForPlayers] " + e.ToString());
+            }
         }
 
-        [PluginEvent(ServerEventType.PlayerChangeRole)]
-        public void OnChangeRole(Player plr, PlayerRoleBase oldRole, RoleTypeId newRole, RoleChangeReason reason)
+        //[PluginEvent(ServerEventType.PlayerChangeRole)]
+        //public void OnChangeRole(Player plr, PlayerRoleBase oldRole, RoleTypeId newRole, RoleChangeReason reason)
+        public override void OnPlayerChangedRole(PlayerChangedRoleEventArgs args)
         {
-            int chance = SimpleUtilities.Singleton.Config.ChaosChance;
+            //Apply health amounts to display
+            InitialHealth(args);
 
-            if (randomNumber > chance)
-                return;
-
-            if (reason != RoleChangeReason.RoundStart && reason != RoleChangeReason.LateJoin)
-                return;
-
-            Timing.CallDelayed(0.1f, () =>
-            {
-                if (newRole == RoleTypeId.FacilityGuard)
-                {
-                    plr.SetRole(RoleTypeId.ChaosRifleman);
-                }
-            });
+            //Change guards to chaos at %
+            OnChangeRole(args);
         }
 
         //Auto Friendly Fire on Round end. FF detector is disabled by default.
-        [PluginEvent(ServerEventType.RoundEnd)]
-        void OnRoundEnded(RoundSummary.LeadingTeam leadingTeam)
+        //void OnRoundEnded(RoundSummary.LeadingTeam leadingTeam)
+        public override void OnServerRoundEnded(RoundEndedEventArgs args)
         {
             if (!SimpleUtilities.Singleton.Config.FfOnEnd)
                 return;
@@ -84,11 +88,15 @@ namespace SimpleUtilities
         }
 
         //Cuffed change teams.
-        [PluginEvent(ServerEventType.PlayerHandcuff)]
-        public void OnPlayerHandcuffed(Player player, Player target)
+        //[PluginEvent(ServerEventType.PlayerHandcuff)]
+        //public void OnPlayerHandcuffed(Player player, Player target)
+        public override void OnPlayerCuffed(PlayerCuffedEventArgs args)
         {
             if (!SimpleUtilities.Singleton.Config.CuffedChangeTeams)
                 return;
+
+            Player player = args.Player;
+            Player target = args.Target;
 
             Timing.RunCoroutine(CuffedChangeTeams());
 
@@ -103,7 +111,7 @@ namespace SimpleUtilities
                         yield break;
                     }
 
-                    foreach (var plr in Player.GetPlayers())
+                    foreach (var plr in Player.GetAll())
                     {
                         if (!target.IsDisarmed || !(target.Team == Team.FoundationForces || target.Team == Team.ChaosInsurgency) || Vector3.Distance(target.Position, new Vector3(124, 988, 23)) > 5)
                         {
@@ -125,33 +133,38 @@ namespace SimpleUtilities
         }
 
         //Hint when player becomes SCP-096's target.
-        [PluginEvent(ServerEventType.Scp096AddingTarget)]
-        public void OnScp096Target(Player player, Player target, bool IsForLooking)
+        //[PluginEvent(ServerEventType.Scp096AddingTarget)]
+        //public void OnScp096Target(Player player, Player target, bool IsForLooking)
+        public override void OnScp096AddedTarget(Scp096AddedTargetEventArgs args)
         {
-            target.ReceiveHint(SimpleUtilities.Singleton.Config.TargetMessage, 5f);
+            args.Target.SendHint(SimpleUtilities.Singleton.Config.TargetMessage, 5f);
         }
 
         //Coin flip hints.
-        [PluginEvent(ServerEventType.PlayerCoinFlip)]
-        void OnCoinFlip(Player player, bool isTails)
+        //[PluginEvent(ServerEventType.PlayerCoinFlip)]
+        //void OnCoinFlip(Player player, bool isTails)
+        public override void OnPlayerFlippedCoin(PlayerFlippedCoinEventArgs args)
         {
             Timing.CallDelayed(1.4f, () =>
             {
-                if (isTails)
+                if (args.IsTails)
                 {
-                    player.ReceiveHint(SimpleUtilities.Singleton.Config.CoinTails, 1.5f);
+                    args.Player.SendHint(SimpleUtilities.Singleton.Config.CoinTails, 1.5f);
                 }
                 else
                 {
-                    player.ReceiveHint(SimpleUtilities.Singleton.Config.CoinHeads, 1.5f);
+                    args.Player.SendHint(SimpleUtilities.Singleton.Config.CoinHeads, 1.5f);
                 }
             });
         }
 
         //Show HP when looking at Player.
-        [PluginEvent(ServerEventType.PlayerChangeRole)]
-        public void InitialHealth(Player plr, PlayerRoleBase oldRole, RoleTypeId newRole, RoleChangeReason reason)
+        //[PluginEvent(ServerEventType.PlayerChangeRole)]
+        //public void InitialHealth(Player plr, PlayerRoleBase oldRole, RoleTypeId newRole, RoleChangeReason reason)
+        public void InitialHealth(PlayerChangedRoleEventArgs args)
         {
+            Player plr = args.Player;
+            RoleTypeId newRole = args.NewRole.RoleTypeId;
             if (!SimpleUtilities.Singleton.Config.ShowHp)
                 return;
 
@@ -167,9 +180,30 @@ namespace SimpleUtilities
             });
         }
 
-        [PluginEvent(ServerEventType.PlayerDamage)]
-        public void DamagedHealth(Player plr, Player target, DamageHandlerBase damageHandler)
+        public void OnChangeRole(PlayerChangedRoleEventArgs args)
         {
+            int chance = SimpleUtilities.Singleton.Config.ChaosChance;
+
+            if (randomNumber > chance)
+                return;
+
+            if (args.ChangeReason != RoleChangeReason.RoundStart && args.ChangeReason != RoleChangeReason.LateJoin)
+                return;
+
+            Timing.CallDelayed(0.1f, () =>
+            {
+                if (args.NewRole.RoleName == RoleTypeId.FacilityGuard.GetRoleBase().RoleName) //Yikes! Check on this later
+                {
+                    args.Player.SetRole(RoleTypeId.ChaosRifleman);
+                }
+            });
+        }
+
+        //[PluginEvent(ServerEventType.PlayerDamage)]
+        //public void DamagedHealth(Player plr, Player target, DamageHandlerBase damageHandler)
+        public override void OnPlayerHurt(PlayerHurtEventArgs args) //A little janky, need to test
+        {
+            Player target = args.Player;
             if (!SimpleUtilities.Singleton.Config.ShowHp)
                 return;
 
