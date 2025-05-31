@@ -13,6 +13,7 @@ using LabApi.Events.Arguments.ServerEvents;
 using LabApi.Features.Wrappers;
 using LabApi.Features.Extensions;
 using LabApi.Events.Arguments.Scp096Events;
+using Interactables.Interobjects.DoorUtils;
 using Logger = LabApi.Features.Console.Logger;
 using LabApi.Features.Enums;
 
@@ -37,11 +38,13 @@ namespace SimpleUtilities
         public override void OnServerWaveRespawned(WaveRespawnedEventArgs args)
         {
             Config config = SimpleUtilities.Singleton.Config;
+            if (config.CassieMessage == "")
+                return;
 
             if (args.Wave.Faction == Faction.FoundationEnemy)
-            {
-                Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
-            }
+                {
+                    Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
+                }
         }
 
         //Chaos Insurgency spawn on round start.
@@ -69,8 +72,6 @@ namespace SimpleUtilities
             }
         }
 
-        //[PluginEvent(ServerEventType.PlayerChangeRole)]
-        //public void OnChangeRole(Player plr, PlayerRoleBase oldRole, RoleTypeId newRole, RoleChangeReason reason)
         public override void OnPlayerChangedRole(PlayerChangedRoleEventArgs args)
         {
             //Apply health amounts to display
@@ -81,24 +82,23 @@ namespace SimpleUtilities
         }
 
         //Auto Friendly Fire on Round end. FF detector is disabled by default.
-        //void OnRoundEnded(RoundSummary.LeadingTeam leadingTeam)
         public override void OnServerRoundEnded(RoundEndedEventArgs args)
         {
             if (!SimpleUtilities.Singleton.Config.FfOnEnd)
                 return;
+
+            bool oldFFSetting = Server.FriendlyFire; //If you changed it temporarily for another reason, set it back when we're done
 
             Server.FriendlyFire = true;
             float restartTime = ConfigFile.ServerConfig.GetFloat("auto_round_restart_time");
 
             Timing.CallDelayed(restartTime - 0.5f, () =>
             {
-                Server.FriendlyFire = false;
+                Server.FriendlyFire = oldFFSetting;
             });
         }
 
         //Cuffed change teams.
-        //[PluginEvent(ServerEventType.PlayerHandcuff)]
-        //public void OnPlayerHandcuffed(Player player, Player target)
         public override void OnPlayerCuffed(PlayerCuffedEventArgs args)
         {
             if (!SimpleUtilities.Singleton.Config.CuffedChangeTeams)
@@ -142,16 +142,12 @@ namespace SimpleUtilities
         }
 
         //Hint when player becomes SCP-096's target.
-        //[PluginEvent(ServerEventType.Scp096AddingTarget)]
-        //public void OnScp096Target(Player player, Player target, bool IsForLooking)
         public override void OnScp096AddedTarget(Scp096AddedTargetEventArgs args)
         {
             args.Target.SendHint(SimpleUtilities.Singleton.Config.TargetMessage, 5f);
         }
 
         //Coin flip hints.
-        //[PluginEvent(ServerEventType.PlayerCoinFlip)]
-        //void OnCoinFlip(Player player, bool isTails)
         public override void OnPlayerFlippedCoin(PlayerFlippedCoinEventArgs args)
         {
             Timing.CallDelayed(1.4f, () =>
@@ -168,8 +164,6 @@ namespace SimpleUtilities
         }
 
         //Show HP when looking at Player.
-        //[PluginEvent(ServerEventType.PlayerChangeRole)]
-        //public void InitialHealth(Player plr, PlayerRoleBase oldRole, RoleTypeId newRole, RoleChangeReason reason)
         public void InitialHealth(PlayerChangedRoleEventArgs args)
         {
             Player plr = args.Player;
@@ -208,8 +202,7 @@ namespace SimpleUtilities
             });
         }
 
-        //[PluginEvent(ServerEventType.PlayerDamage)]
-        //public void DamagedHealth(Player plr, Player target, DamageHandlerBase damageHandler)
+        //Update hp in hud when looked at by another player
         public override void OnPlayerHurt(PlayerHurtEventArgs args) //A little janky, need to test
         {
             Player target = args.Player;
@@ -232,7 +225,7 @@ namespace SimpleUtilities
         public override void OnPlayerInteractingDoor(PlayerInteractingDoorEventArgs args)
         {
             //DebugLog(args.Door.DoorName.ToString() +" "+ SimpleUtilities.Singleton.Config.GuardsCanEscape.ToString() +" "+ args.Player.RoleBase.RoleTypeId.ToString() +" "+ args.Player.IsDisarmed.ToString());
-            if (args.Door.DoorName !=  DoorName.SurfaceEscapeFinal || !SimpleUtilities.Singleton.Config.GuardsCanEscape || args.Player.RoleBase.RoleTypeId != RoleTypeId.FacilityGuard || args.Player.IsDisarmed)
+            if (args.Door.DoorName != DoorName.SurfaceEscapeFinal || !SimpleUtilities.Singleton.Config.GuardsCanEscape || args.Player.RoleBase.RoleTypeId != RoleTypeId.FacilityGuard || args.Player.IsDisarmed)
                 return;
 
             string roleToBe = SimpleUtilities.Singleton.Config.EscapedGuardRole;
@@ -264,29 +257,8 @@ namespace SimpleUtilities
             {
                 Logger.Error("Could not find role " + roleToBe + ". Please consult RoleTypeId.cs");
             }
-            /*
-                switch (roleToBe.ToLower())
-                {
-                    case "ntfsergeant":
-                        roleToBeId = RoleTypeId.NtfSergeant;
-                        break;
-                    case "ntfcaptain":
-                        roleToBeId = RoleTypeId.NtfCaptain;
-                        break;
-                    case "ntfprivate":
-                        roleToBeId = RoleTypeId.NtfPrivate;
-                        break;
-                    case "ntfspecialist":
-                        roleToBeId = RoleTypeId.NtfSpecialist;
-                        break;
-                    default:
-                        roleToBeId = RoleTypeId.FacilityGuard;
-                        Logger.Warn("EscapedGuardRole is improperly set. Change ASAP!");
-                        break;
-                }
-                */
 
-            args.Player.SetRole(roleToBeId, RoleChangeReason.Escaped);
+            args.Player.SetRole(roleToBeId, RoleChangeReason.Escaped);  
         }
 
         public override void OnPlayerPickedUpItem(PlayerPickedUpItemEventArgs args)
@@ -305,6 +277,43 @@ namespace SimpleUtilities
                     break;
                 }
             }
+        }
+
+        public override void OnServerLczDecontaminationAnnounced(LczDecontaminationAnnouncedEventArgs args)
+        {
+            uint configPhase = SimpleUtilities.Singleton.Config.LastChanceDeconPhase;
+
+            if (configPhase == 6)
+                return;
+
+            Door DoorArmory = Door.Get("LCZ_ARMORY");
+            Door Door914 = Door.Get("914");
+
+            DebugLog(args.Phase);
+
+            if (configPhase == 5 && args.Phase == 5)
+            {
+                Timing.CallDelayed(0.05f, () =>
+                {
+                    HandleLCDDoor(DoorArmory, false);
+                    HandleLCDDoor(Door914, false);
+                });
+            }
+
+            if (args.Phase == configPhase)
+                {
+                    HandleLCDDoor(DoorArmory, true);
+                    HandleLCDDoor(Door914, true);
+                }
+        }
+
+        private void HandleLCDDoor(Door door, bool isOpened)
+        {
+            DebugLog("LCD Door Interaction");
+
+            door.IsOpened = isOpened;
+            if (SimpleUtilities.Singleton.Config.LcdLockDoor)
+                door.IsLocked = true;
         }
 
         public void DebugLog(object obj)

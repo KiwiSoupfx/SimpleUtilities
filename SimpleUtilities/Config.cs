@@ -39,18 +39,21 @@ namespace SimpleUtilities
         [Description("Message sent for the player who looked at / shot SCP-096. (Leave it empty to disable.)")]
         public string TargetMessage { get; set; } = "you became a target for scp-096!";
 
+        [Category("Coin settings")]
         [Description("Message sent when coin lands on tails. (Leave it empty to disable.)")]
         public string CoinTails { get; set; } = "the coin landed on tails!";
 
         [Description("Message sent when coin lands on heads. (Leave it empty to disable.)")]
         public string CoinHeads { get; set; } = "the coin landed on heads!";
 
+        [Category("Health display")]
         [Description("Whether or not to show players' HP when looking at them.")]
         public bool ShowHp { get; set; } = true;
 
         [Description("Format of displayed HP. Keep everything between ' '.")]
         public string HpDisplayFormat { get; set; } = "HP: %current%/%max%";
 
+        [Category("Guard escape")]
         [Description("Grant facility guards honorary promotion into NTF on leaving the facility (Until order is restored)")]
         public bool GuardsCanEscape { get; set; } = false;
 
@@ -65,6 +68,7 @@ namespace SimpleUtilities
             "NtfPrivate"
         };
 
+        [Category("SCP-3114 item pickup blacklist")]
         [Description("Prevent Scp3114 from picking up blacklisted items.")]
         public bool ShouldBlacklist3114 { get; set; } = false;
 
@@ -86,6 +90,24 @@ namespace SimpleUtilities
             "SCP500",
             "MicroHID",
             "ParticleDisruptor"
+        };
+
+        [Category("Last Chance Decontamination")]
+        [Description("Phase of automatic decontamination to open locked doors in light containment [0 = 15m, 1 = 10m, 2 = 5m, 3 = 1m, 4 = 30s, 5 = ~10s ](5 to relock at 30seconds, 6 to disable)")]
+        public uint LastChanceDeconPhase { get; set; } = 5;
+
+        [Description("Should the door be locked open/close after operation?")]
+        public bool LcdLockDoor = true;
+
+        [Description("Set mode for last chance decon (prox, all, emptyzone, room)")]
+        public string LcdMode { get; set; } = "prox";
+
+        [Description("Which team should open doors for prox and room (SCPs,FoundationForces,ChaosInsurgency,Scientists,ClassD,Dead,OtherAlive,Flamingos)")]
+        public List<String> LcdRole { get; set; } = new()
+        {
+            "SCP",
+            "ClassD",
+            "Scientists"
         };
     }
 }
