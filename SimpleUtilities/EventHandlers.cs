@@ -13,9 +13,11 @@ using LabApi.Events.Arguments.ServerEvents;
 using LabApi.Features.Wrappers;
 using LabApi.Features.Extensions;
 using LabApi.Events.Arguments.Scp096Events;
-using Interactables.Interobjects.DoorUtils;
 using Logger = LabApi.Features.Console.Logger;
 using LabApi.Features.Enums;
+using System.Linq;
+using MapGeneration;
+using System.Threading;
 
 namespace SimpleUtilities
 {
@@ -42,9 +44,9 @@ namespace SimpleUtilities
                 return;
 
             if (args.Wave.Faction == Faction.FoundationEnemy)
-                {
-                    Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
-                }
+            {
+                Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
+            }
         }
 
         //Chaos Insurgency spawn on round start.
@@ -286,34 +288,123 @@ namespace SimpleUtilities
             if (configPhase == 6)
                 return;
 
-            Door DoorArmory = Door.Get("LCZ_ARMORY");
-            Door Door914 = Door.Get("914");
+            Room Room914 = Room.Get(RoomName.Lcz914).First();
+            Room RoomArmory = Room.Get(RoomName.LczArmory).First();
 
             DebugLog(args.Phase);
 
-            if (configPhase == 5 && args.Phase == 5)
+            foreach (var plr in Player.GetAll())
             {
-                Timing.CallDelayed(0.05f, () =>
-                {
-                    HandleLCDDoor(DoorArmory, false);
-                    HandleLCDDoor(Door914, false);
-                });
+                if (Room914.Players.Contains(plr))
+                    DebugLog(plr.DisplayName + " found in " + Room914.Name);
             }
 
             if (args.Phase == configPhase)
+            {
+                string lcdMode = SimpleUtilities.Singleton.Config.LcdMode.ToLower();
+                //TODO: cleanup all this checking / handling:
+                //TODO: implement proximity
+                if (lcdMode == "room")
                 {
-                    HandleLCDDoor(DoorArmory, true);
-                    HandleLCDDoor(Door914, true);
+                    if (RoomCheck(RoomArmory))
+                        HandleLCDDoors(RoomArmory, true);
+
+                    if (RoomCheck(Room914))
+                        HandleLCDDoors(Room914, true);
+                    return;
                 }
+
+                if (lcdMode == "zone")
+                {
+                    if (ZoneCheck(Room914, RoomArmory))
+                        HandleLCDDoors(RoomArmory, true);
+
+                    if (ZoneCheck(Room914, RoomArmory))
+                        HandleLCDDoors(Room914, true);
+                    return;
+                }
+
+                if (lcdMode == "always")
+                {
+                    HandleLCDDoors(RoomArmory, true);
+                    HandleLCDDoors(Room914, true);
+                    return;
+                }
+
+                if (configPhase == 5)
+                Timing.CallDelayed(0.01f, () =>
+                {
+                    HandleLCDDoors(RoomArmory, false);
+                    HandleLCDDoors(Room914, false);
+                });
+            }
         }
 
-        private void HandleLCDDoor(Door door, bool isOpened)
+        private bool RoomCheck(Room room)
         {
+
+            uint roomCountLimit;
+            //zone - if zone is empty, open doors
+            //prox + proxnum + class to check for how many rooms over to check for players before opening doors
+            if (SimpleUtilities.Singleton.Config.LcdRoomCountNum < 1)
+                roomCountLimit = 0;
+            else
+                roomCountLimit = SimpleUtilities.Singleton.Config.LcdRoomCountNum;
+
+
+            foreach (RoomIdentifier roomId in room.ConnectedRooms.Take((int)roomCountLimit)) //This always stresses me out
+            {
+                roomCountLimit++;
+                Room connectedRoom = Room.Get(roomId);
+                foreach (Player player in room.Players)
+                {
+                    if (SimpleUtilities.Singleton.Config.LcdRole.Contains(player.Team.ToString())) //Please no more loops
+                    {
+                        DebugLog(player.Team.ToString() + " found nearby in " + connectedRoom.Name + ", aborting");
+                        return false;
+                    }
+                }
+            }
+            
+            return true;
+        }
+
+        private void HandleLCDDoors(Room room, bool isOpened)
+        {
+            //Lock all doors
             DebugLog("LCD Door Interaction");
 
-            door.IsOpened = isOpened;
-            if (SimpleUtilities.Singleton.Config.LcdLockDoor)
-                door.IsLocked = true;
+            IEnumerable<Door> allDoors = room.Doors; //Get the next (First()) room and then get the closest (First()) unnamed door 
+
+            foreach (Door door in allDoors)
+            {
+                door.IsOpened = isOpened;
+                if (SimpleUtilities.Singleton.Config.LcdLockDoor)
+                {
+                    door.IsLocked = true;
+                }  
+            }
+        }
+
+        private bool ZoneCheck(Room room914, Room roomArmory)
+        {
+            IEnumerable<Room> LczRooms = Room.Get(FacilityZone.LightContainment);
+            foreach (Room room in LczRooms)
+            {
+                if (room == roomArmory || room == room914)
+                    continue;
+                    
+                foreach (Player player in room.Players)
+                {
+                    if (!SimpleUtilities.Singleton.Config.LcdRole.Contains(player.Team.ToString())) //Please no more loops
+                    {
+                        DebugLog(player.Team.ToString() + " found nearby in " + room.Name + ", aborting");
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         public void DebugLog(object obj)
