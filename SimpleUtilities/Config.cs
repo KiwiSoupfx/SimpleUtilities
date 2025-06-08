@@ -106,5 +106,17 @@ namespace SimpleUtilities
             "ClassD",
             "Scientists"
         };
+
+        [Description("Chance (0-100) for a wave to spawn as Flamingos instead of Chaos or NTF (0 to disable)")]
+        public int FlamingoWaveChance { get; set; } = 20;
+
+        [Description("Minimum number of players to start a Flamingo wave")]
+        public int FlamingoWavePlrMin { get; set; } = 5;
+
+        [Description("Chance (0-100) for a subsequent wave to spawn a Flamingo wave (0 to disable)")]
+        public int SubseqFlamingoWaveChance { get; set; } = 0;
+
+        [Description("How many players to track for becoming the Alpha Flamingo based on who died first")]
+        public uint FlamingoWaveDeadPlayerTrackLimit { get; set; } = 3;
     }
 }

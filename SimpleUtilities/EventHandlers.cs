@@ -17,7 +17,12 @@ using Logger = LabApi.Features.Console.Logger;
 using LabApi.Features.Enums;
 using System.Linq;
 using MapGeneration;
-using System.Threading;
+using MapGeneration.Holidays;
+using Respawning.Announcements;
+using System.Text;
+using Respawning.Waves;
+using CommandSystem.Commands;
+using Achievements.Handlers;
 
 namespace SimpleUtilities
 {
@@ -25,6 +30,9 @@ namespace SimpleUtilities
     {
         int randomNumber;
         string hpFormat;
+        int flamingoWaveChance = 0;
+
+        List<Player> longestDeadPlayerList = new();
         
         //Welcome message.
         public override void OnPlayerJoined(PlayerJoinedEventArgs args)
@@ -39,14 +47,8 @@ namespace SimpleUtilities
         //Cassie announcement on Chaos Insurgency Spawn.
         public override void OnServerWaveRespawned(WaveRespawnedEventArgs args)
         {
-            Config config = SimpleUtilities.Singleton.Config;
-            if (config.CassieMessage == "")
-                return;
-
-            if (args.Wave.Faction == Faction.FoundationEnemy)
-            {
-                Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
-            }
+            ChaosAnnouncement(args);
+            FlamingoWaveHandler(args);
         }
 
         //Chaos Insurgency spawn on round start.
@@ -60,6 +62,7 @@ namespace SimpleUtilities
                 return;
             }
 
+            flamingoWaveChance = SimpleUtilities.Singleton.Config.FlamingoWaveChance;
             randomNumber = Random.Range(1, 100);
 
 
@@ -189,10 +192,12 @@ namespace SimpleUtilities
         {
             int chance = SimpleUtilities.Singleton.Config.ChaosChance;
 
-            if (randomNumber > chance)
+            if (args.ChangeReason != RoleChangeReason.RoundStart && args.ChangeReason != RoleChangeReason.LateJoin)
                 return;
 
-            if (args.ChangeReason != RoleChangeReason.RoundStart && args.ChangeReason != RoleChangeReason.LateJoin)
+            DebugLog("randomNumber: " + randomNumber);
+            DebugLog("guard to chaos chance: " + chance);
+            if (randomNumber > chance)
                 return;
 
             Timing.CallDelayed(0.1f, () =>
@@ -290,6 +295,8 @@ namespace SimpleUtilities
 
             Room Room914 = Room.Get(RoomName.Lcz914).First();
             Room RoomArmory = Room.Get(RoomName.LczArmory).First();
+            RoomCheck(Room914);
+            RoomCheck(RoomArmory);
 
             DebugLog(args.Phase);
 
@@ -340,10 +347,107 @@ namespace SimpleUtilities
             }
         }
 
+        public override void OnPlayerDeath(PlayerDeathEventArgs args)
+        {
+            //if (HolidayUtils.GetActiveHoliday() != HolidayType.Christmas)
+            //    return;
+
+            if (args.Player.IsOnline && longestDeadPlayerList.Count < SimpleUtilities.Singleton.Config.FlamingoWaveDeadPlayerTrackLimit)
+            {
+                //longestDeadPlayerList.AddItem(args.Player);
+                longestDeadPlayerList.Add(args.Player);
+                DebugLog("Adding player to list " + args.Player.DisplayName);
+            }
+        }
+
+        private void ChaosAnnouncement(WaveRespawnedEventArgs args)
+        {
+            Config config = SimpleUtilities.Singleton.Config;
+            if (config.CassieMessage == "")
+                return;
+
+            if (args.Wave.Faction == Faction.FoundationEnemy)
+            {
+                Cassie.Clear();
+                Cassie.Message(config.CassieMessage, true, config.CassieNoise, config.CassieText);
+            }
+        }
+
+        private void FlamingoWaveHandler(WaveRespawnedEventArgs args)
+        {
+            RoleTypeId roleToBeId;
+            RoleTypeId alphaRoleToBeId;
+
+            if (HolidayUtils.GetActiveHoliday() != HolidayType.Christmas) //If not Christmas, make flamingos zombies
+            {
+                roleToBeId = RoleTypeId.Scp0492;
+                alphaRoleToBeId = RoleTypeId.Scp0492;
+            }
+            else
+            {
+                roleToBeId = RoleTypeId.Flamingo;
+                alphaRoleToBeId = RoleTypeId.AlphaFlamingo;
+            }
+
+
+
+            DebugLog("Config chance: " + flamingoWaveChance);
+
+            if (SimpleUtilities.Singleton.Config.FlamingoWavePlrMin > args.Players.Count())
+                return;
+
+            if (flamingoWaveChance <= 0)
+                return;
+
+            int waveRoll = Random.Range(1, 100);
+            DebugLog("Wave rolled: " + waveRoll);
+            if (waveRoll > flamingoWaveChance) //I hate random stuff it drives me nuts
+                return;
+
+
+            foreach (Player player in args.Players)
+            {
+                if (!player.IsOnline)
+                    continue;
+
+                player.SetRole(roleToBeId, RoleChangeReason.RemoteAdmin);
+            }
+
+            List<Player> playerSearch = longestDeadPlayerList.Intersect(args.Players).ToList();
+            DebugLog("playerSearch count: " + playerSearch.Count());
+            if (playerSearch.Count() > 0)
+            {
+                Player alphaPlayer = playerSearch.First();
+                alphaPlayer.SetRole(alphaRoleToBeId, RoleChangeReason.RemoteAdmin);
+                alphaPlayer.MaxHumeShield = 300; //Buff whoever spawns in place of alpha because 049 spawns this one with less health for some reason
+                alphaPlayer.HumeShield = 300;
+                alphaPlayer.HumeShieldRegenRate = 1f;
+                playerSearch.Clear();
+
+                DebugLog("Role set playerSearch");
+            }
+            else
+            {
+                Player alphaPlayer = args.Players.First();
+                alphaPlayer.SetRole(alphaRoleToBeId, RoleChangeReason.RemoteAdmin);
+                alphaPlayer.MaxHumeShield = 300; //Same as before
+                alphaPlayer.HumeShield = 300;
+                alphaPlayer.HumeShieldRegenRate = 1f;
+                DebugLog("Role set args.Players");
+            }
+
+            Server.ClearBroadcasts(); //No clue if this works
+            flamingoWaveChance = SimpleUtilities.Singleton.Config.SubseqFlamingoWaveChance;
+
+            args.Wave.RespawnTokens += 1;
+        }
+
         private bool RoomCheck(Room room)
         {
-
+            //DebugLog(room.Name);
             uint roomCountLimit;
+            Room currRoom = null;
+            RoomIdentifier roomId;
             //zone - if zone is empty, open doors
             //prox + proxnum + class to check for how many rooms over to check for players before opening doors
             if (SimpleUtilities.Singleton.Config.LcdRoomCountNum < 1)
@@ -351,21 +455,28 @@ namespace SimpleUtilities
             else
                 roomCountLimit = SimpleUtilities.Singleton.Config.LcdRoomCountNum;
 
-
-            foreach (RoomIdentifier roomId in room.ConnectedRooms.Take((int)roomCountLimit)) //This always stresses me out
+            //foreach (RoomIdentifier roomId in room.ConnectedRooms.Take((int)roomCountLimit)) //This always stresses me out
+            for (int roomCount = 0; roomCount < roomCountLimit; roomCount++)
             {
-                roomCountLimit++;
+                if (currRoom == null)
+                    roomId = room.ConnectedRooms.Take((int)roomCountLimit).First();
+                else
+                    roomId = currRoom.ConnectedRooms.Take((int)roomCountLimit).First();
+
                 Room connectedRoom = Room.Get(roomId);
-                foreach (Player player in room.Players)
+                currRoom = connectedRoom;
+
+                foreach (Player player in connectedRoom.Players)
                 {
+                    DebugLog("Player found: (" + player.DisplayName + ") Player team: (" + player.Team + ")" + SimpleUtilities.Singleton.Config.LcdRole.Contains(player.Team.ToString()).ToString());
                     if (SimpleUtilities.Singleton.Config.LcdRole.Contains(player.Team.ToString())) //Please no more loops
                     {
-                        DebugLog(player.Team.ToString() + " found nearby in " + connectedRoom.Name + ", aborting");
+                        //DebugLog(player.Team.ToString() + " found nearby in " + connectedRoom.Name + ", aborting");
                         return false;
                     }
                 }
             }
-            
+
             return true;
         }
 
@@ -398,7 +509,7 @@ namespace SimpleUtilities
                 {
                     if (!SimpleUtilities.Singleton.Config.LcdRole.Contains(player.Team.ToString())) //Please no more loops
                     {
-                        DebugLog(player.Team.ToString() + " found nearby in " + room.Name + ", aborting");
+                        //DebugLog(player.Team.ToString() + " found nearby in " + room.Name + ", aborting");
                         return false;
                     }
                 }
